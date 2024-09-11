@@ -1,0 +1,453 @@
+# 创建网络图
+G = nx.Graph()
+G.add_nodes_from([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,80,81,82,83,84,85,87,88,89,90,91,92,93,94,95,111,112,113,114,115])
+G.add_weighted_edges_from([(1,2,0.3),(1,8,1),(1,14,0.1),(1,15,0.1),(2,3,1),(2,4,0.5),(2,8,1),(2,13,0.5),(2,14,0.3),(2,15,0.3),(3,8,0.5),(4,5,0.5),(4,12,0.5),(6,7,0.3),(6,9,0.1),(7,8,0.5),(7,9,0.1),(7,10,0.3),(7,11,0.3),(7,12,0.3),(7,13,0.3),(7,14,0.3),(7,15,0.3),(8,9,0.1),(8,13,1),(8,14,1),(8,15,1),(9,10,0.3),(10,11,0.3),(13,15,0.5),(14,15,0.3),(1,47,0.7),(1,67,0.3),(2,42,0.4),(2,45,0.4),(2,67,0.2),(3,44,1),(4,39,0.5),(4,49,0.5),(5,40,1),(6,50,1),(7,51,1),(8,67,0.5),(8,57,0.5),(9,57,0.2),(9,63,0.5),(9,67,0.3),(10,58,1),(11,59,1),(12,60,1),(13,57,0.2),(13,53,0.8),(14,67,0.3),(14,57,0.2),(14,64,0.5),(15,67,0.3),(15,57,0.2),(15,54,0.5),
+                          (31,32,0.75),(31,33,0.75),(31,34,0.75),(31,35,0.75),(31,36,0.75),(31,37,0.75),(31,68,0.75),(31,69,0.75),(31,70,0.75),(31,71,0.75),(31,72,0.75),(31,73,0.75),(32,41,0.7),(32,42,0.55),(32,43,0.65),(32,44,0.6),(32,45,0.2),(32,46,0.75),(32,47,0.45),(32,48,0.55),(32,49,0.55),(32,52,0.35),(33,52,0.35),(33,55,0.7),(33,56,0.65),(33,57,0.6),(33,58,0.55),(33,59,0.75),(34,60,0.75),(34,61,0.2),(34,62,0.55),(35,50,0.3),(35,54,0.75),(36,63,0.5),(36,64,0.75),(36,65,0.65),(36,66,0.65),(37,51,0.3),(37,67,0.4),(38,39,0.35),(39,40,0.4),(42,44,0.35),(44,67,0.25),(44,48,0.25),(44,45,0.35),(47,67,0.25),(53,55,0.75),(53,54,0.25),(53,57,0.25),(54,67,0.25),(54,57,0.25),(55,57,0.25),(57,63,0.25),(57,64,0.25),(57,67,0.25),(63,67,0.25),(64,67,0.25),
+                          (32,83,0.3),(33,86,0.3),(34,87,0.3),(35,87,0.3),(36,87,0.3),(37,87,0.3),(38,81,0.3),(39,88,0.6),(41,82,0.6),(43,90,0.6),(45,94,0.3),(46,82,0.6),(47,90,0.6),(48,90,0.6),(50,93,1),(51,93,1),(53,89,0.3),(55,89,0.6),(56,92,0.6),(58,95,0.9),(59,80,0.6),(60,89,0.6),(65,91,0.6),(66,91,0.6),(68,87,0.3),(69,83,0.3),(70,83,0.3),(71,83,0.3),(72,84,0.3),(73,84,0.3),
+                          (80,81,0.2),(80,82,0.2),(83,84,0.4),(83,88,0.4),(83,85,0.3),(83,88,0.3),(83,86,0.6),(83,87,0.6),(83,90,0.1),(84,85,0.4),(84,88,0.4),(84,86,0.3),(84,87,0.3),(84,89,0.3),(84,90,0.1),(85,88,0.4),(85,86,0.3),(85,87,0.3),(85,89,0.3),(86,87,0.4),(85,90,0.1),(86,88,0.3),(86,89,0.3),(86,91,0.1),(87,88,0.3),(87,89,0.4),(87,91,0.1),(88,89,0.3),(90,91,0.6),(90,92,0.6),(90,95,0.3),(91,92,0.3),(91,95,0.3),(92,95,0.4)
+                    ])
+# 定义团队节点和形式节点
+team_nodes = [111, 112, 113, 114, 115]
+function_nodes = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+structure_nodes = [31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73]
+formal_nodes = [80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95]
+
+team_node_degrees = [G.degree(node) for node in team_nodes]
+print(f"初始网络: {team_node_degrees}")
+
+def get_min_degree_team_node(graph, nodes):   
+    min_degree = float('inf')
+    min_degree_team_node = None
+    for team_node in nodes:
+        if graph.degree[team_node] < min_degree:
+            min_degree = graph.degree[team_node]
+            min_degree_team_node = team_node
+
+return min_degree_team_node
+
+def get_most_connected_team_node(graph, change_node, team_nodes, connection_counts):
+    # 计算每个团队节点与变更节点的连接次数
+    team_connections = {team_node: connection_counts.get((change_node, team_node), 0) for team_node in team_nodes}
+    
+    # 选择连接次数最多的团队节点
+    max_connections = max(team_connections.values())
+    candidates = [node for node, count in team_connections.items() if count == max_connections]
+
+    # 如果所有连接次数都为0，选择度值最小的节点
+    if max_connections == 0:
+        min_degree = min(graph.degree(node) for node in candidates)
+        candidates = [node for node in candidates if graph.degree(node) == min_degree]
+
+    # 从候选节点中随机选择一个
+    return random.choice(candidates)
+
+def get_min_degree_team_nodes(graph, change_nodes, team_nodes, connection_counts):
+    min_degree_team_nodes = []
+    key_names = []
+
+    # 筛选未建立连接的变更节点
+    unconnected_change_nodes = [node for node in change_nodes if all(not graph.has_edge(node, team_node) for team_node in team_nodes)]
+
+    for node in unconnected_change_nodes:
+        selected_team_node = get_most_connected_team_node(graph, node, team_nodes, connection_counts)
+        key_name = (node, selected_team_node)
+        
+        graph.add_edge(node, selected_team_node)
+        key_names.append(key_name)
+        min_degree_team_nodes.append(selected_team_node)
+
+        # 更新连接次数
+        connection_counts[key_name] = connection_counts.get(key_name, 0) + 1
+
+return min_degree_team_nodes, key_names
+
+
+import math
+# 开始迭代
+change_nodes = []
+node_degrees = {}
+connection_counts = {}
+all_paths = []
+
+degree_111, degree_112, degree_113, degree_114, degree_115 = [], [], [], [], []
+average_degree_111, average_degree_112, average_degree_113, average_degree_114, average_degree_115 = [], [], [], [], []
+all_difference_iterations_data = []  # 用于存储每次迭代的数据
+risk_records = []
+iteration_total_risks_all = []
+for iteration in range(i):
+    # 选择上次迭代中与新变更节点的相邻形式节点
+    if iteration == 0:
+        change_nodes = [58]  # 第一次迭代中变更节点即为形式节点20
+        min_degree_team_nodes, key_names = get_min_degree_team_nodes(graph=G, change_nodes=change_nodes, team_nodes=team_nodes, connection_counts=connection_counts)
+        before_nodes = ()
+        before_set = set(before_nodes)
+        change_set = set(change_nodes)
+
+        # 使用交集操作符 & 找出重叠元素
+        overlap = before_set & change_set
+        overlap_list = list(overlap)
+        difference_list = list(change_set - before_set)
+        #print('over',overlap_list)
+        print('difference_list1',difference_list)
+        min_degree_team_nodes, key_names = get_min_degree_team_nodes(graph=G, change_nodes=change_nodes, team_nodes=team_nodes, connection_counts=connection_counts)
+    else:
+        if change_nodes is not None:
+           # print("变更节点,", change_nodes)
+
+            before_nodes = change_nodes.copy()
+            print(change_nodes)
+        # change_nodes = []  # 创建一个变更节点列表
+        ran_nums = {}
+        neighbors = []
+        
+
+
+        for difference_node in difference_list:
+            neighbors = list(G.neighbors(difference_node))  # 获取上一次的变更节点的相邻节点
+            print('bto', neighbors)
+            for neighbor in neighbors:
+                if neighbor not in change_nodes and neighbor not in team_nodes and neighbor not in function_nodes:
+                    #print('danheng')
+                    # 计算度值和集聚系数
+                    def get_degree_centrality(G, node):
+                        return G.degree(node) / (len(G) - 1)
+
+                    def get_clustering_coefficient(G, node):
+                        return nx.clustering(G, node)
+
+                    def get_betweenness_centrality(G, node):
+                        # 仅计算与该节点相关的最短路径介数中心性
+                        betweenness_centrality = nx.betweenness_centrality(G, k=None, normalized=True, weight=None, endpoints=False, seed=None)
+                        return betweenness_centrality[node]
+
+                    # 计算节点 neighbor 的属性
+                    degree = G.degree(neighbor)
+
+                    # 计算风险
+                    
+                    
+                
+                    if G.has_edge(difference_node, neighbor):
+                        weighted_edge = G[difference_node][neighbor]['weight']
+                        posible = weighted_edge * (math.log(degree)/ math.log(15))
+                        print('itto', posible)
+                        if neighbor not in ran_nums:
+                            ran_nums[neighbor] = random.random()  # 生成一个随机数
+
+                        ran_num = ran_nums[neighbor]  # 获取节点对应的随机数
+
+
+                        # 使用边权重作为选择的概率
+                        if ran_num <= posible:
+                            all_paths.append({'source': difference_node, 'target': neighbor, 'iteration': iteration })
+                            change_nodes.append(neighbor)
+                            neighbors.remove(neighbor)
+
+
+        for before_node in before_nodes:
+            neighbor_append = list(G.neighbors(before_node))  # 获取上一次的变更节点的相邻节点
+            neighbors.extend(neighbor_append)
+        for before_node in before_nodes:
+            for neighbor in neighbors:
+                if neighbor not in change_nodes and neighbor not in team_nodes and neighbor not in function_nodes:
+                    #print('danheng')
+                    # 计算度值和集聚系数
+                    def get_degree_centrality(G, node):
+                        return G.degree(node) / (len(G) - 1)
+
+                    def get_clustering_coefficient(G, node):
+                        return nx.clustering(G, node)
+
+                    def get_betweenness_centrality(G, node):
+                        # 仅计算与该节点相关的最短路径介数中心性
+                        betweenness_centrality = nx.betweenness_centrality(G, k=None, normalized=True, weight=None, endpoints=False, seed=None)
+                        return betweenness_centrality[node]
+
+                    # 计算节点 neighbor 的属性
+                    degree = G.degree(neighbor)
+
+                    # 计算风险
+                    
+                    if G.has_edge(before_node, neighbor):
+                        weighted_edge = G[before_node][neighbor]['weight']
+                        posible = weighted_edge * (math.log(degree)/ math.log(15))
+                        print('itto', posible)
+                        if neighbor not in ran_nums:
+                            ran_nums[neighbor] = random.random()  # 生成一个随机数
+
+                        ran_num = ran_nums[neighbor]  # 获取节点对应的随机数
+                        #print("wighted_edge:",weighted_edge )
+                # Use the edge weight as probability for selection
+                        if ran_num <= posible / 2:
+                            all_paths.append({'source': before_node, 'target': neighbor, 'iteration': iteration })
+                            change_nodes.append(neighbor)
+                            neighbors.remove(neighbor)
+
+        before_set = set(before_nodes)
+        change_set = set(change_nodes)
+
+        # 使用交集操作符 & 找出重叠元素
+        overlap = before_set & change_set
+        overlap_list = list(overlap)
+        difference_list = list(change_set - before_set)
+        
+        #print('over',overlap_list)
+        print('difference_list',difference_list)
+        all_difference_iterations_data.append({
+        'Iteration': i,
+        'DifferenceList': difference_list
+    })
+        
+        
+
+        # 调用函数
+        min_degree_team_nodes, key_names = get_min_degree_team_nodes(graph=G, change_nodes=change_nodes, team_nodes=team_nodes, connection_counts=connection_counts)
+
+
+ 
+    min_degree_team_nodes_set = set(min_degree_team_nodes)
+    min_degree_team_nodes = list(min_degree_team_nodes_set)
+    
+    if iteration == 0:
+        # 初始化 ddls_dict 并用 connection_counts 字典填充它
+        ddls_dict = {}
+        for key, value in connection_counts.items():
+            ddls_dict[key] = iteration + 3 / value + 0.5
+    else:
+        # 根据最新的连接次数计算新的值
+        updated_ddls_dict = {}
+        for key, value in connection_counts.items():
+            if value < 4:
+                suijifengxiang = random.random()
+                updated_ddls_dict[key] = iteration + 2 / value + suijifengxiang
+            else:
+                updated_ddls_dict[key] = iteration
+                print('value', [updated_ddls_dict])
+
+        
+        intersection_keys = set(ddls_dict).intersection(updated_ddls_dict)
+        ddls_dict.update({key: value for key, value in updated_ddls_dict.items() if key not in ddls_dict})
+
+
+    get_nodes = []
+    for pair, value in ddls_dict.items():
+        (node_left, node_right) = pair
+        if iteration >= value:
+            get_nodes.append(node_left)
+    for node1 in get_nodes:
+        for node2 in team_nodes:
+            # print('final_dict', ddls_dict)
+
+            if G.has_edge(node1, node2):
+                G.remove_edge(node1, node2)
+                change_nodes.remove(node1)
+
+                delete_list = []
+                for pair in ddls_dict.keys():
+                    if node1 in pair:
+                        delete_list.append(pair)
+
+                for pair in delete_list:      
+                    ddls_dict.pop(pair)
+
+                bfs_tree = nx.bfs_tree(G, node1)
+                connected_nodes = bfs_tree.nodes()
+                distance_groups = {}  # 存储距离分组的字典
+
+                for node in connected_nodes:
+                    if node != node1:  # 排除节点 node1 自身
+                        if node not in team_nodes and node in change_nodes and node not in function_nodes :
+                            distance = nx.shortest_path_length(G, node, node1)  # 计算节点与 node1 的路径距离
+                            if distance not in distance_groups:
+                                distance_groups[distance] = []  # 初始化对应距离的列表
+                            distance_groups[distance].append(node)  # 将节点添加到对应距离的列表中
+              
+                random_nums = {}
+                r_nums = {}
+                for distance, nodes in distance_groups.items():
+                  for node in connected_nodes:
+                    if G.has_edge(node, node1) == False:
+                        if node not in team_nodes and node in change_nodes and node not in function_nodes :
+                            if node not in random_nums:
+                                random_nums[node] = random.random()  # 生成一个随机数
+
+                            random_num = random_nums[node]  # 获取节点对应的随机数
+                              path = nx.shortest_path_length(G, node, node1)
+                              print("path",path )
+                            weighted_edge = 1 / (distance+1)  # 使用路径长度来计算权重
+                              print("weighted_edge", weighted_edge)
+                            if random_num < weighted_edge:
+                                #print("random_num", random_num)
+                                #print("weighted_edge", weighted_edge)
+                                G.add_edge(node, node1, weight=weighted_edge, connected=True)
+                            else:
+                                G.add_edge(node, node1, weight=weighted_edge, connected=False)
+                    else:
+                        if node not in team_nodes and node not in change_nodes and node not in function_nodes :
+                            if node not in random_nums:
+                                r_nums[node] = random.random()  # 生成一个随机数
+
+                            r_num = r_nums[node]  # 获取节点对应的随机数
+                            wighty = 0.3  # 使用路径长度来计算权重
+                            if r_num < wighty:
+                                #print("random_num", random_num)
+                                #print("weighted_edge", weighted_edge)
+                                G.remove_edge(node, node1)
+                    
+
+    team_node_degrees = {node: G.degree(node) for node in team_nodes}
+    
+    for node in team_nodes:
+        key = f"degree_{node}"
+        target_list = eval(key)
+        num = G.degree(node)
+        target_list.append(num)
+    
+    print(f"Iteration {iteration}: {team_node_degrees}")
+
+    for team_node in team_nodes:
+        node_degree = G.degree(team_node)
+
+        if team_node in node_degrees:
+            node_degrees[team_node] += node_degree
+        else:
+            node_degrees[team_node] = node_degree
+
+    avg_degrees = {node: node_degrees[node] / i for node in node_degrees}
+
+    for node, avg_degree in avg_degrees.items():
+        key = f"average_degree_{node}"
+        target_list = eval(key)
+        target_list.append(avg_degree)
+        print(f"Node {node} average degree: {avg_degree}")
+        
+    af_before_set = set(before_nodes)
+    af_change_set = set(change_nodes)
+
+    # 使用交集操作符 & 找出重叠元素
+    afoverlap = af_before_set & af_change_set
+    afoverlap_list = list(overlap)
+    afdifference_list = list(af_change_set - af_before_set)    
+    risks = []  # 在每次迭代开始时初始化风险列表
+      # 初始化风险记录
+     # 初始化每次迭代的总风险
+    total_risk = 0
+    total_risk_count = 0
+    iteration_total_risk = 0
+    for afdifference_node in afdifference_list:
+        still_neighbor_risks = []  # 初始化邻居风险列表
+        still_neighbors = list(G.neighbors(afdifference_node))
+        for still_neighbor in still_neighbors:
+            if still_neighbor not in change_nodes and still_neighbor not in team_nodes and still_neighbor not in function_nodes:
+                # 计算度值和集聚系数
+                def get_degree_centrality(G, node):
+                    return G.degree(node) / (len(G) - 1)
+
+                def get_clustering_coefficient(G, node):
+                    return nx.clustering(G, node)
+
+                def get_betweenness_centrality(G, node):
+                    # 仅计算与该节点相关的最短路径介数中心性
+                    betweenness_centrality = nx.betweenness_centrality(G, k=None, normalized=True, weight=None, endpoints=False, seed=None)
+                    return betweenness_centrality[node]
+
+                # 计算节点 neighbor 的属性
+                still_neighbor_degree_centrality = get_degree_centrality(G, still_neighbor)
+                still_neighbor_clustering_coefficient = get_clustering_coefficient(G, still_neighbor)
+                still_neighbor_betweenness_centrality = get_betweenness_centrality(G, still_neighbor)
+                degree = G.degree(still_neighbor)
+
+                # 计算风险
+                weighted_edge = G[afdifference_node][still_neighbor]['weight']
+                posible = weighted_edge * (math.log(degree) / math.log(15))
+                risk = posible * (still_neighbor_clustering_coefficient + still_neighbor_betweenness_centrality)
+
+                #print('wrios', weighted_edge, risk, posible)
+
+                # 将风险添加到邻居风险列表
+                still_neighbor_risks.append(risk)
+                 
+        # 计算差异节点的平均风险
+        if still_neighbor_risks:
+            #print('ok')
+            average_risk = sum(still_neighbor_risks) / len(still_neighbor_risks)
+            risks.append((afdifference_node, average_risk))
+            iteration_total_risk += average_risk
+            
+            risk_records.append({
+                'Iteration': iteration,
+                'Node': afdifference_node,
+                'Average Risk': average_risk
+            })
+            print('bai', risk_records)
+            
+    for before_node in before_nodes:
+        bstill_neighbor_risks = []  # 初始化邻居风险列表
+        bstill_neighbors = list(G.neighbors(before_node))
+        for bstill_neighbor in bstill_neighbors:
+            if bstill_neighbor not in change_nodes and bstill_neighbor not in team_nodes and bstill_neighbor not in function_nodes:
+                # 计算度值和集聚系数
+                def get_degree_centrality(G, node):
+                    return G.degree(node) / (len(G) - 1)
+
+                def get_clustering_coefficient(G, node):
+                    return nx.clustering(G, node)
+
+                def get_betweenness_centrality(G, node):
+                    # 仅计算与该节点相关的最短路径介数中心性
+                    betweenness_centrality = nx.betweenness_centrality(G, k=None, normalized=True, weight=None, endpoints=False, seed=None)
+                    return betweenness_centrality[node]
+
+                # 计算节点 neighbor 的属性
+                bstill_neighbor_degree_centrality = get_degree_centrality(G, bstill_neighbor)
+                bstill_neighbor_clustering_coefficient = get_clustering_coefficient(G, bstill_neighbor)
+                bstill_neighbor_betweenness_centrality = get_betweenness_centrality(G, bstill_neighbor)
+                degree = G.degree(bstill_neighbor)
+
+                # 计算风险
+                weighted_edge = G[before_node][bstill_neighbor]['weight']
+                posible = weighted_edge * (math.log(degree) / math.log(15))
+                risk = 0.3 * posible * (bstill_neighbor_clustering_coefficient + bstill_neighbor_betweenness_centrality)
+
+                #print('wrios', weighted_edge, risk, posible)
+
+                # 将风险添加到邻居风险列表
+                bstill_neighbor_risks.append(risk)
+        if bstill_neighbor_risks:
+        #print('ok')
+            average_risk = sum(bstill_neighbor_risks) / len(bstill_neighbor_risks)
+            risks.append((before_node, average_risk))
+            iteration_total_risk += average_risk
+
+            risk_records.append({
+                'Iteration': iteration,
+                'Node': before_node,
+                'Average Risk': average_risk
+            })
+            print('bai', risk_records)
+        
+    iteration_total_risks_all.append({
+        'Iteration': iteration,
+        'Total Risk': iteration_total_risk
+})
+
+
+
+# 将所有风险记录和迭代总风险存储为 DataFrame
+risk_df = pd.DataFrame(risk_records)
+iteration_risk_df = pd.DataFrame(iteration_total_risks_all)
+
+# 输出为Excel文件
+with pd.ExcelWriter('*risk_output.xlsx') as writer:
+    risk_df.to_excel(writer, sheet_name='Node Risks', index=False)
+    iteration_risk_df.to_excel(writer, sheet_name='Iteration Total Risks', index=False)
+
+print("Data has been written to risk_output.xlsx")
+
+# 创建DataFrame
+df_paths = pd.DataFrame(all_paths)
+
+# 保存到Excel文件
+df_paths.to_excel('*change_paths.xlsx', index=False)
+
+print("Excel file 'change_paths.xlsx' has been created with the paths and their generation order.")
