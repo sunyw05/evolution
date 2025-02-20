@@ -1,0 +1,99 @@
+import numpy as np
+import pandas as pd
+from itertools import combinations
+import random
+from collections import Counter
+
+
+excel_file_path = '2task.xlsx'
+
+
+
+task_similarity_df = pd.read_excel(excel_file_path, sheet_name='task')
+team_support_df = pd.read_excel(excel_file_path, sheet_name='task-team')
+new_task_similarity_df = pd.read_excel(excel_file_path, sheet_name='new-task')
+
+
+task_similarity = task_similarity_df.iloc[:, 1:].to_numpy()
+team_support = team_support_df.iloc[:, 1:].to_numpy()
+new_task_similarity = new_task_similarity_df.iloc[:, 1:].to_numpy()
+
+
+def calculate_weighted_recommendations(team_support, task_similarity):
+    weighted_recommendations = task_similarity.dot(team_support.T)
+    return weighted_recommendations
+
+
+weighted_recommendations = calculate_weighted_recommendations(team_support, task_similarity)
+
+def calculate_recommendations(new_task_similarity, weighted_recommendations, top_n=5):
+    recommendations = np.zeros((new_task_similarity.shape[0], weighted_recommendations.shape[1]))
+    for i, new_task_sim in enumerate(new_task_similarity):
+        top_tasks_indices = np.argsort(new_task_sim)[-top_n:]
+        for team_index in range(weighted_recommendations.shape[1]):
+            selected_supports = weighted_recommendations[top_tasks_indices, team_index]
+            avg_support = np.mean(selected_supports)
+            recommendations[i, team_index] = avg_support
+    return recommendations
+
+
+recommendations = calculate_recommendations(new_task_similarity, weighted_recommendations, top_n=6)
+print('rr', recommendations)
+
+
+def find_optimal_schemes_heuristic(recommendations, num_teams, num_top_schemes=10, sample_size=10000, iterations=5):
+    num_tasks = recommendations.shape[0]
+    best_schemes_scores = []
+
+    for _ in range(iterations):
+        top_schemes_scores = []
+
+       
+        for _ in range(sample_size):
+            scheme = [random.randint(0, num_teams - 1) for _ in range(num_tasks)]
+          
+            if len(set(scheme)) == num_teams and max(Counter(scheme).values()) - min(Counter(scheme).values()) <= 1:
+                total_score = sum(recommendations[task_id, team_id] for task_id, team_id in enumerate(scheme))
+                top_schemes_scores.append((total_score, scheme))
+
+        
+        top_schemes_scores.sort(reverse=True, key=lambda x: x[0])
+        top_schemes_scores = top_schemes_scores[:num_top_schemes]
+
+        improved_schemes_scores = []
+        for score, scheme in top_schemes_scores:
+            improved_scheme = scheme.copy()
+            for task_id in range(num_tasks):
+                best_team = improved_scheme[task_id]
+                best_score = score
+                for team_id in range(num_teams):
+                    if team_id != improved_scheme[task_id]:
+                        temp_scheme = improved_scheme.copy()
+                        temp_scheme[task_id] = team_id
+                        
+                        if len(set(temp_scheme)) == num_teams and max(Counter(temp_scheme).values()) - min(Counter(temp_scheme).values()) <= 1:
+                            temp_score = sum(recommendations[task_id, team_id] for task_id, team_id in enumerate(temp_scheme))
+                            if temp_score > best_score:
+                                best_team = team_id
+                                best_score = temp_score
+                improved_scheme[task_id] = best_team
+            improved_schemes_scores.append((best_score, improved_scheme))
+
+        improved_schemes_scores.sort(reverse=True, key=lambda x: x[0])
+        improved_schemes_scores = improved_schemes_scores[:num_top_schemes]
+
+        best_schemes_scores.extend(improved_schemes_scores)
+
+ 
+    best_schemes_scores.sort(reverse=True, key=lambda x: x[0])
+    best_schemes_scores = best_schemes_scores[:num_top_schemes]
+
+    return best_schemes_scores
+
+
+num_teams = team_support.shape[0]  
+top_schemes = find_optimal_schemes_heuristic(recommendations, num_teams, 10, iterations=5)
+
+
+for i, (score, scheme) in enumerate(top_schemes):
+    print(f"plan {i + 1}: {scheme} all: {score}")
