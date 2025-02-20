@@ -1,0 +1,242 @@
+import numpy as np
+import torch
+import torch.nn.functional as F
+import pandas as pd
+import torch_geometric
+from torch_geometric.data import Data
+from torch_geometric.nn import GATConv
+import os
+
+# Step 1: 加载GloVe词向量
+def load_glove_embeddings(glove_file):
+    glove_embeddings = {}
+    with open(glove_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            split_line = line.strip().split()
+            word = split_line[0]
+            vector = np.array(split_line[1:], dtype=np.float32)
+            glove_embeddings[word] = vector
+    return glove_embeddings
+
+# Step 2: 将节点名称转化为词向量，并进行平均
+def get_node_feature(node_name, glove_embeddings):
+    words = node_name.split()  # 假设每个节点名称由空格分隔的词组成
+    feature_vectors = []
+    for word in words:
+        if word in glove_embeddings:
+            feature_vectors.append(glove_embeddings[word])
+        else:
+            feature_vectors.append(np.zeros(50))  # 如果词不在词向量中，使用零向量
+    feature_vector = np.mean(feature_vectors, axis=0)  # 计算词向量的平均值
+    return torch.tensor(feature_vector, dtype=torch.float)
+
+# Step 3: 构建GAT模型
+class GAT(torch.nn.Module):
+    def __init__(self, input_dim, output_dim, num_heads):
+        super(GAT, self).__init__()
+        self.gat_conv = GATConv(input_dim, output_dim, heads=num_heads, dropout=0.6)
+
+    def forward(self, x, edge_index):
+        x = self.gat_conv(x, edge_index)
+        return F.elu(x)
+
+# Step 4: 准备数据
+# 从Excel文件中获取节点名称和邻接矩阵
+def prepare_data_from_excel(node_excel_file, adj_excel_file, glove_embeddings):
+    # Step 4.1: 读取节点名称Excel文件
+    df_node = pd.read_excel(node_excel_file)
+    node_names = df_node['NAME'].tolist()  # 获取'NAME'列的节点名称
+
+    # Step 4.2: 读取邻接矩阵Excel文件
+    df_adj = pd.read_excel(adj_excel_file, header=None)
+    adj_matrix = df_adj.values  # 假设邻接矩阵存在整个表格中
+
+    # Step 4.3: 获取节点的特征向量
+    node_features = []
+    for node_name in node_names:
+        feature = get_node_feature(node_name, glove_embeddings)
+        node_features.append(feature)
+    node_features = torch.stack(node_features, dim=0)
+
+    # Step 4.4: 转换邻接矩阵为图的边列表
+    edge_index = []
+    num_nodes = len(node_names)
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if adj_matrix[i][j] == 1:
+                edge_index.append([i, j])
+
+    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+
+    # Step 4.5: 创建PyG数据对象
+    data = Data(x=node_features, edge_index=edge_index)
+    return data
+
+# Step 5: 提取对象节点的特征并保存
+def save_object_node_features(data, object_node_indices, output_dir='./'):
+    # 提取特定节点的特征
+    object_node_features = data.x[object_node_indices]
+    print("提取的对象节点特征:")
+    print(object_node_features)
+
+    # 保存特征到文件
+    object_node_features_numpy = object_node_features.detach().numpy()
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    np.save(f'{output_dir}/object_node_features.npy', object_node_features_numpy)
+    print(f"对象节点特征已保存到 {output_dir}/object_node_features.npy")
+
+    return object_node_features
+
+# 示例：准备数据
+glove_file = 'D:\\Python\\glove.6B.50d.txt'  # 使用GloVe 50维模型文件
+glove_embeddings = load_glove_embeddings(glove_file)
+
+# 假设Excel文件路径
+node_excel_file = 'D:\\Python\\node name.xlsx'
+adj_excel_file = 'D:\\Python\\node relationship.xlsx'
+
+# Step 4: 准备数据
+data = prepare_data_from_excel(node_excel_file, adj_excel_file, glove_embeddings)
+
+# Step 6: 创建GAT模型并训练
+input_dim = 50  # GloVe向量的维度
+output_dim = 50  # 每个头的输出维度
+num_heads = 1  # 使用一个头
+model = GAT(input_dim, output_dim, num_heads)
+
+# 示例：假设使用一个简单的训练循环（这里只是演示）
+optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+
+# Step 7: 训练模型
+model.train()
+for epoch in range(200):  # 训练200个epoch
+    optimizer.zero_grad()
+    out = model(data.x, data.edge_index)
+    loss = F.mse_loss(out, data.x)  # 这里用均方误差作为简单的损失函数
+    loss.backward()
+    optimizer.step()
+    print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+
+# Step 8: 提取并保存对象节点的特征
+object_node_indices = torch.tensor(list(range(2, 35)))  # 假设对象节点索引为 2 到 34
+output_dir = './output'  # 保存目录
+save_object_node_features(data, object_node_indices, output_dir)
+
+# 训练完毕后，可以使用保存的特征进行推理和推荐等任务
+import torch
+import pandas as pd
+import numpy as np
+import torch.nn.functional as F
+from tqdm import tqdm
+
+# 设置随机种子
+torch.manual_seed(42)
+
+# 数据加载与预处理
+file_path = 'generated_sequences.xlsx'  # 替换为实际文件路径
+data = pd.read_excel(file_path)
+
+data.columns = data.columns.str.strip()
+
+# 提取 "Observed" 和 "Hidden" 列中的行为数据
+observed_sequences = data['Observed'].apply(lambda x: [item.strip() for item in str(x).split('->')])
+hidden_sequences = data['Hidden'].apply(lambda x: [item.strip() for item in str(x).split('->')])
+
+# 提取所有唯一的观测行为和隐藏行为
+observed_states = set(state for seq in observed_sequences for state in seq)
+hidden_states = set(state for seq in hidden_sequences for state in seq)
+
+# 生成观测行为到编号的映射
+observed_mapping = {state: idx for idx, state in enumerate(observed_states)}
+# 生成编号到观测行为的反向映射
+observed_reverse_mapping = {idx: state for state, idx in observed_mapping.items()}
+
+# 生成隐藏行为到编号的映射
+hidden_mapping = {state: idx for idx, state in enumerate(hidden_states)}
+# 生成编号到隐藏行为的反向映射
+hidden_reverse_mapping = {idx: state for state, idx in hidden_mapping.items()}
+
+# 打印映射字典，检查是否生成正确
+print("观测行为映射字典:", observed_mapping)
+print("隐藏行为映射字典:", hidden_mapping)
+
+# 现在可以在训练时使用这些映射字典来转换行为
+
+# 将观测序列和隐藏序列转换为数字序列
+numerical_observed = observed_sequences.apply(lambda seq: [observed_mapping[state] for state in seq])
+numerical_hidden = hidden_sequences.apply(lambda seq: [hidden_mapping[state] for state in seq])
+
+# 转换为 PyTorch 张量
+observations = torch.tensor(np.concatenate(numerical_observed.values)).long()
+
+# 限制数据规模进行测试
+print(f"Observations length: {len(observations)}")
+observations = observations[:1000]  # 仅使用前 1000 条数据
+
+# 限制隐藏状态数为合理范围
+n_hidden = 30  # 合理范围的隐藏状态数量
+n_observed = len(observed_states)  # 保持观测状态数量不变
+
+# 初始化 HMM 参数
+start_probs = torch.rand(n_hidden, requires_grad=True)  # 初始状态分布
+transition_probs = torch.rand(n_hidden, n_hidden, requires_grad=True)  # 转移矩阵
+emission_probs = torch.rand(n_hidden, n_observed, requires_grad=True)  # 发射矩阵
+
+# 参数归一化
+def normalize_probs(probs, dim):
+    return F.softmax(probs, dim=dim)
+
+# 前向算法（完全避免就地操作）
+def forward_algorithm(obs, start_probs, transition_probs, emission_probs):
+    T = len(obs)
+    alpha = []  # 使用列表存储每一步的结果
+
+    # 计算 alpha[0]
+    alpha_0 = normalize_probs(start_probs * emission_probs[:, obs[0]], dim=0)
+    alpha.append(alpha_0)
+
+    # 逐步计算 alpha[t]
+    for t in range(1, T):
+        prev_alpha = alpha[-1].unsqueeze(0)  # 获取 alpha[t-1] 并扩展维度
+        current_emission = emission_probs[:, obs[t]].unsqueeze(0)  # 当前发射概率
+        alpha_t = normalize_probs(torch.matmul(prev_alpha, transition_probs).squeeze(0) * current_emission.squeeze(0), dim=0)
+        alpha.append(alpha_t)
+
+    # 将列表拼接为张量
+    return torch.stack(alpha, dim=0)
+
+# 损失函数（负对数似然）
+def hmm_loss(obs, start_probs, transition_probs, emission_probs):
+    alpha = forward_algorithm(obs, start_probs, transition_probs, emission_probs)
+    return -torch.log(torch.sum(alpha[-1]))
+
+# 优化器
+optimizer = torch.optim.Adam([start_probs, transition_probs, emission_probs], lr=0.01)
+
+# 训练 HMM
+n_epochs = 50
+with tqdm(total=n_epochs, desc="Training Progress") as pbar:
+    for epoch in range(n_epochs):
+        optimizer.zero_grad()
+        loss = hmm_loss(observations, start_probs, transition_probs, emission_probs)
+        loss.backward()
+        optimizer.step()
+        pbar.set_postfix({"Loss": loss.item()})
+        pbar.update(1)
+        print(f"Epoch {epoch + 1}/{n_epochs}, Loss: {loss.item()}")
+
+# 保存结果
+print("训练完成！")
+print("初始概率分布:", normalize_probs(start_probs, dim=0).detach().numpy())
+print("转移矩阵:", normalize_probs(transition_probs, dim=1).detach().numpy())
+print("发射矩阵:", normalize_probs(emission_probs, dim=1).detach().numpy())
+
+# 推理：例如，假设推荐的行为是编号为29
+recommended_behavior_idx = 29
+
+# 使用行为映射字典来获取具体的行为内容
+recommended_behavior = observed_reverse_mapping[recommended_behavior_idx]
+
+# 输出推荐的行为
+print(f"推荐的行为是: {recommended_behavior}")
