@@ -97,3 +97,65 @@ top_schemes = find_optimal_schemes_heuristic(recommendations, num_teams, 10, ite
 
 for i, (score, scheme) in enumerate(top_schemes):
     print(f"plan {i + 1}: {scheme} all: {score}")
+# 计算每个方案的时间损耗
+def calculate_completion_time(recommendations, top_schemes):
+    completion_times = []
+    # 指定的任务对，考虑到从0开始编号
+    task_pairs = [(10,1),(11,1),(5,0),(6,0),(9,15),(9,16),(4,9),(4,0),(12,13),(12,14),(12,2),(13,2),(14,2),(8,3)]
+    for _, scheme in top_schemes:
+        # 初始化时间为0
+        time = 0
+        # 遍历指定的任务对
+        for task1, task2 in task_pairs:
+            if task1 < len(scheme) and task2 < len(scheme):
+                # 计算指定任务对的推荐团队的推荐度差的绝对值
+                time += abs(recommendations[task1, scheme[task1]] - recommendations[task2, scheme[task2]])
+        completion_times.append(time)
+    return completion_times
+
+# 计算每个方案的时间损耗
+completion_times = calculate_completion_time(recommendations, top_schemes)
+
+# 输出每个方案的时间损耗
+for i, time in enumerate(completion_times):
+    print(f"方案 {i+1} 的时间损耗: {time}")
+print(completion_times)
+
+
+# 添加 Pareto 最优方案识别部分
+def identify_pareto(scores):
+    # 初始化一个布尔数组，假设所有点最初都是Pareto最优解
+    is_pareto = np.ones(scores.shape[0], dtype=bool)
+    for i in range(scores.shape[0]):
+        for j in range(scores.shape[0]):
+            if i != j:
+                # 如果找到一个点在所有维度上都不差于当前点（并且在至少一个维度上更好）
+                # 那么当前点就不是Pareto最优解
+                if all(scores[j] >= scores[i]) and any(scores[j] > scores[i]):
+                    is_pareto[i] = False
+                    break
+    return is_pareto
+
+# 假设 top_scores 和 completion_times 已经被定义
+# 构建得分和完成时间的数组
+scores = np.array([score for score, _ in top_schemes])
+completion_times_array = np.array(completion_times)
+
+# 得分我们希望越高越好，完成时间我们希望越低越好，因此完成时间取负值
+pareto_input = np.column_stack((scores, -completion_times_array))
+
+# 找到 Pareto 最优解的索引
+pareto_indices = identify_pareto(pareto_input)
+
+# 从 top_schemes 中选择 Pareto 最优解的团队配置和得分
+pareto_solutions = [(top_schemes[i][0], top_schemes[i][1], completion_times[i]) for i in pareto_indices]
+
+# 创建一个集合来存储唯一的Pareto最优方案
+unique_pareto_solutions = set()
+for i in pareto_indices:
+    # 转换方案为字符串以检查唯一性
+    solution_str = f"{top_schemes[i][0]}, {top_schemes[i][1]}, {completion_times[i]}"
+    if solution_str not in unique_pareto_solutions:
+        unique_pareto_solutions.add(solution_str)
+        # 打印时再转换回正确的数据类型（如果需要）
+        print(f"Pareto最优方案: 推荐团队 {top_schemes[i][1]}, 总推荐度: {top_schemes[i][0]}, 完成时间: {completion_times[i]}")
