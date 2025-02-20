@@ -1,0 +1,364 @@
+import networkx as nx
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# 读取Excel文件
+file_paths = [f"{str(i).zfill(2)}change_paths.xlsx" for i in range(1, 11)]
+df_paths_list = [pd.read_excel(file) for file in file_paths]
+df_paths = pd.concat(df_paths_list, ignore_index=True)
+
+# 创建有向图
+G = nx.MultiDiGraph()
+
+# 添加边并计算权重
+for index, row in df_paths.iterrows():
+    if G.has_edge(row['source'], row['target']):
+        # 遍历所有多重边
+        for key in G[row['source']][row['target']]:
+            G[row['source']][row['target']][key]['weight'] += 1
+            break  # 假设只有一个多重边，我们就更新它的权重
+    else:
+        G.add_edge(row['source'], row['target'], weight=1)
+
+# 收集所有边及其权重
+edges = [(u, v, d['weight']) for u, v, d in G.edges(data=True)]
+print(edges)
+import networkx as nx
+import math
+import matplotlib.pyplot as plt
+
+# Function to calculate node risks (sum of edge weights for each node)
+def calculate_node_risks(G):
+    node_risks = {}
+    for node in G.nodes():
+        # The risk of a node is the sum of all its incident edge weights
+        node_risks[node] = sum(weight for _, _, weight in G.edges(node, data='weight'))
+    return node_risks
+
+# Bellman-Ford Algorithm using log-transformed edge weights and path recording
+def bellman_ford_custom(G, start):
+    # Calculate node risks (sum of all edge weights for each node)
+    node_risks = calculate_node_risks(G)
+
+    # Initialize distances from start to all other nodes as infinity and paths as empty
+    distance = {node: math.inf for node in G.nodes()}
+    distance[start] = 0
+    # To store the predecessor for each node, to reconstruct paths later
+    predecessors = {node: None for node in G.nodes()}
+
+    # Number of vertices
+    num_vertices = len(G.nodes())
+
+    # Relax edges up to (num_vertices - 1) times
+    for _ in range(num_vertices - 1):
+        for u, v, weight in G.edges(data='weight'):
+            # Apply log transformation to the edge weight (loge)
+            log_weight = math.log(weight)
+
+            # Calculate the edge cost using the original cost formula
+            cost = log_weight * node_risks[v]
+
+            # Relaxation step for u -> v
+            if distance[u] != math.inf and distance[u] + cost < distance[v]:
+                distance[v] = distance[u] + cost
+                predecessors[v] = u  # Update predecessor
+
+            # Relax the reverse direction as well (since it's an undirected graph)
+            if distance[v] != math.inf and distance[v] + cost < distance[u]:
+                distance[u] = distance[v] + cost
+                predecessors[u] = v  # Update predecessor
+
+    return distance, predecessors
+
+# Function to extract the path from predecessors
+def extract_path(predecessors, node):
+    path = []
+    while node is not None:
+        path.append(node)
+        node = predecessors[node]
+    path.reverse()  # Reverse to get the correct order
+    return path
+
+# Function to remove isolated nodes (not in the largest connected component)
+def remove_isolated_nodes(G):
+    # 获取图中所有的连通分量
+    connected_components = list(nx.connected_components(G))
+
+    # 找出最大连通分量
+    largest_cc = max(connected_components, key=len)
+
+    # 创建节点的列表副本，移除所有不属于最大连通分量的节点
+    nodes_to_remove = [node for node in G.nodes() if node not in largest_cc]
+
+    # 移除不属于最大连通分量的节点
+    for node in nodes_to_remove:
+        G.remove_node(node)
+
+    return G
+
+# Example: using the provided graph G
+G = nx.Graph()
+
+# Add nodes (as given in your code)
+G.add_nodes_from(
+    list(range(1, 34)) +
+    [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60] +
+    list(range(71, 114)) +
+    list(range(120, 136)) +  
+    [201, 202, 203, 204, 205]
+)
+
+G.add_weighted_edges_from(edges)
+G = remove_isolated_nodes(G)
+
+# 可视化新的图
+print(f"After removing isolated nodes, remaining nodes: {len(G.nodes())}")
+nx.draw(G, with_labels=True)
+plt.show()
+
+# Define start node
+start_node = 96
+
+# Run the Bellman-Ford algorithm with log-transformed edge weights
+distances, predecessors = bellman_ford_custom(G, start_node)
+
+# Output the shortest distances from the start node to all other nodes
+print(f"Shortest distances from {start_node}: {distances}")
+
+# Collect all paths and their distances, but only keep paths ending at leaf nodes (nodes with no further connections)
+leaf_paths = []
+for node, dist in distances.items():
+    if dist < math.inf and node != start_node:  # Skip unreachable nodes and start_node itself
+        # Check if the node is a "leaf" node (no further neighbors except its predecessor)
+        neighbors = set(G.neighbors(node))
+        if len(neighbors - {predecessors[node]}) == 0:  # If the node has no neighbors other than its predecessor
+            path = extract_path(predecessors, node)
+            leaf_paths.append((path, dist))
+
+# Sort paths by distance (ascending order)
+sorted_paths = sorted(leaf_paths, key=lambda x: x[1])
+
+# Output the 5 shortest paths that end at leaf nodes
+print("\nTop 5 shortest leaf node paths:")
+for i, (path, dist) in enumerate(sorted_paths[:5]):
+    print(f"Path {i+1}: {path}, Cost: {dist}")
+import networkx as nx
+import math
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Function to calculate node risks based on edge weights and risk attributes of neighboring nodes
+def calculate_node_risks(G, node_risks_df):
+    # Convert risk attributes to dictionary for easy lookup
+    risk_attributes = node_risks_df.set_index('node')['risk'].to_dict()
+
+    # Initialize risk dictionary
+    node_risks = {}
+
+    # Calculate risk for each node
+    for node in G.nodes():
+        risk_sum = 0
+        for neighbor in G.neighbors(node):
+            edge_weight = G[node][neighbor]['weight']
+            # Multiply edge weight by the risk attribute of the neighbor if it exists
+            if neighbor in risk_attributes:
+                risk_sum += edge_weight * risk_attributes[neighbor]
+        node_risks[node] = risk_sum
+
+    return node_risks
+
+# Bellman-Ford Algorithm using modified edge weights and path recording
+def bellman_ford_custom(G, start, node_risks):
+    # Initialize distances from start to all other nodes as infinity and paths as empty
+    distance = {node: math.inf for node in G.nodes()}
+    distance[start] = 0
+    predecessors = {node: None for node in G.nodes()}
+
+    # Number of vertices
+    num_vertices = len(G.nodes())
+
+    # Relax edges up to (num_vertices - 1) times
+    for _ in range(num_vertices - 1):
+        for u, v, weight in G.edges(data='weight'):
+            # Apply log transformation to the edge weight (loge)
+            log_weight = math.log(weight)
+
+            # Calculate the edge cost using the new risk calculation
+            cost = log_weight * node_risks[v]
+
+            # Relaxation step for u -> v
+            if distance[u] != math.inf and distance[u] + cost < distance[v]:
+                distance[v] = distance[u] + cost
+                predecessors[v] = u  # Update predecessor
+
+    return distance, predecessors
+
+# Load node risks from an Excel file
+risk_data_path = 'risk fea.xlsx'
+risk_df = pd.read_excel(risk_data_path)
+
+# Example usage with a given graph G
+G = nx.Graph()
+G.add_weighted_edges_from(edges)
+G = remove_isolated_nodes(G)
+
+# Calculate node risks using the new method
+node_risks = calculate_node_risks(G, risk_df)
+
+# Define start node
+start_node = 96
+
+# Run the Bellman-Ford algorithm with the new node risks
+distances, predecessors = bellman_ford_custom(G, start_node, node_risks)
+
+# You can now use 'distances' and 'predecessors' for further analysis or visualization
+# Output the shortest distances from the start node to all other nodes
+print(f"Shortest distances from {start_node}: {distances}")
+
+# Collect all paths and their distances, but only keep paths ending at leaf nodes (nodes with no further connections)
+leaf_paths = []
+for node, dist in distances.items():
+    if dist < math.inf and node != start_node:  # Skip unreachable nodes and start_node itself
+        # Check if the node is a "leaf" node (no further neighbors except its predecessor)
+        neighbors = set(G.neighbors(node))
+        if len(neighbors - {predecessors[node]}) == 0:  # If the node has no neighbors other than its predecessor
+            path = extract_path(predecessors, node)
+            leaf_paths.append((path, dist))
+
+# Sort paths by distance (ascending order)
+sorted_paths = sorted(leaf_paths, key=lambda x: x[1])
+
+# Output the 5 shortest paths that end at leaf nodes
+print("\nTop 5 shortest leaf node paths:")
+for i, (path, dist) in enumerate(sorted_paths[:5]):
+    print(f"Path {i+1}: {path}, Cost: {dist}")
+
+import re
+
+def parse_paths_and_costs(file_path):
+    nodes = {}
+    costs = {}
+    # 定义用于匹配每行信息的正则表达式
+    path_pattern = r"Path (\d+): \[([\d, ]+)\], Cost: ([\d.]+)"
+    
+    with open(file_path, 'r') as file:
+        for line_number, line in enumerate(file, 1):
+            line = line.strip()
+            if not line:  # 跳过空行
+                continue
+            path_match = re.match(path_pattern, line)
+            if path_match:
+                path_id = int(path_match.group(1))
+                nodes_list = path_match.group(2)
+                cost = float(path_match.group(3))
+                path_nodes = [int(x) for x in nodes_list.split(',')]
+
+                if path_nodes:
+                    current_node = path_nodes[0]  # 将路径的第一个节点设为当前节点
+
+                    if current_node not in nodes:  # 确保节点字典已初始化
+                        nodes[current_node] = {}
+                        costs[current_node] = {}
+                        
+                    nodes[current_node][path_id] = path_nodes
+                    costs[current_node][path_id] = cost
+            else:
+                print(f"Unprocessed line {line_number}: {line}")
+    
+    return nodes, costs
+
+# 测试代码
+file_path = 'biangenglujing.txt'  # 请根据实际情况修改文件路径
+nodes, costs = parse_paths_and_costs(file_path)
+
+# 输出节点信息
+if nodes:
+    for node, paths in nodes.items():
+        print(f"Node {node}:")
+        for path_id, path_nodes in paths.items():
+            print(f"  Path {path_id}: Nodes {path_nodes} with Cost {costs[node][path_id]}")
+else:
+    print("No nodes parsed.")
+import pulp
+
+def solve_min_cost_paths(nodes, costs):
+    # 创建线性规划问题
+    prob = pulp.LpProblem("MinimizeCostAndVisits", pulp.LpMinimize)
+
+    # 成本标准化
+    max_cost = max(max(costs[node].values()) for node in costs)
+    min_cost = min(min(costs[node].values()) for node in costs)
+    normalized_costs = {node: {path_id: (cost - min_cost) / (max_cost - min_cost) for path_id, cost in costs[node].items()} for node in costs}
+
+    # 创建决策变量
+    x = pulp.LpVariable.dicts("path_selection", ((node, path_id) for node in nodes for path_id in nodes[node]), cat=pulp.LpBinary)
+    all_nodes = set(node for sublist in nodes.values() for path in sublist.values() for node in path)
+    v = pulp.LpVariable.dicts("node_visits", all_nodes, 0, None, pulp.LpInteger)
+
+    # 调整权重以观察结果变化
+    weight_cost = 1.0
+    weight_visits = 1.0  # 将访问次数权重调整为与成本相等
+
+    # 目标函数
+    prob += (pulp.lpSum([normalized_costs[node][path_id] * x[(node, path_id)] for node in nodes for path_id in nodes[node]]) * weight_cost +
+             pulp.lpSum([v[node] for node in all_nodes]) * weight_visits)
+
+    # 约束条件
+    for node in nodes:
+        prob += pulp.lpSum([x[(node, path_id)] for path_id in nodes[node]]) == 1, f"OnePathPerNode_{node}"
+    for node in all_nodes:
+        prob += v[node] == pulp.lpSum(x[n, p] * path.count(node) for n in nodes for p in nodes[n] for path in [nodes[n][p]]), f"VisitCount_{node}"
+
+    # 解决问题
+    prob.solve()
+
+    # 输出结果
+    print("Status:", pulp.LpStatus[prob.status])
+    
+    selected_paths = {}
+    for node in nodes:
+        for path_id in nodes[node]:
+            if pulp.value(x[(node, path_id)]) == 1:
+                selected_paths[node] = nodes[node][path_id]
+                print(f"Node {node} selects Path {path_id} with cost {costs[node][path_id]}")
+    for node in all_nodes:
+        print(f"Node {node} visited {pulp.value(v[node])} times")
+
+    return selected_paths
+
+
+selected_paths = solve_min_cost_paths(nodes, costs)
+import networkx as nx
+import matplotlib.pyplot as plt
+
+def generate_network(selected_paths):
+    G = nx.DiGraph()  # 创建有向图
+
+    # 收集所有路径的第一个节点作为起点
+    start_nodes = {path[0] for path in selected_paths.values()}
+
+    for node, path in selected_paths.items():
+        # 添加边到图中，连接路径上的连续节点
+        for i in range(len(path) - 1):
+            G.add_edge(path[i], path[i + 1])
+
+    # 尝试使用 spring_layout 布局，并调整节点之间的距离
+    pos = nx.spring_layout(G, k=0.5, iterations=100)  # k 值调整节点之间的距离
+    plt.figure(figsize=(14, 12))  # 设置图形大小
+
+    # 画所有节点
+    nx.draw_networkx_nodes(G, pos, node_color='skyblue', node_size=400)
+    # 特别标记起点
+    nx.draw_networkx_nodes(G, pos, nodelist=start_nodes, node_color='limegreen', node_size=400)
+    # 画边
+    nx.draw_networkx_edges(G, pos, edge_color='#FF5733', arrowstyle='-|>', arrowsize=20)
+    # 标签
+    nx.draw_networkx_labels(G, pos, font_size=12, font_color='darkred')
+
+    plt.title('Optimal Path Network Visualization with Start Nodes Highlighted')
+    plt.axis('off')  # 关闭坐标轴
+    plt.show()
+
+# 确保 selected_paths 包含所有独立路径的正确数据
+
+generate_network(selected_paths)
